@@ -5,19 +5,47 @@ from nnfs.datasets import spiral_data
 nnfs.init()
 
 class Layer_Dense:
-    def __init__(self, n_inputs, n_neurons):
+    def __init__(self, n_inputs, n_neurons, weight_regularizer_l1=0,weight_regularizer_l2=0, 
+                 bias_regularizer_l1=0, bias_regularizer_l2=0):
         self.weights = 0.01 * np.random.randn(n_inputs, n_neurons)
-        self.bias = np.zeros((1, n_neurons))
+        self.biases = np.zeros((1, n_neurons))
+
+        self.weight_regularizer_l1 = weight_regularizer_l1
+        self.weight_regularizer_l2 = weight_regularizer_l2
+        self.bias_regularizer_l1 = bias_regularizer_l1
+        self.bias_regularizer_l2 = bias_regularizer_l2
 
     def forward(self, inputs):
         self.inputs = inputs
-        self.output = np.dot(inputs, self.weights) + self.bias
+        self.output = np.dot(inputs, self.weights) + self.biases
 
     def backward(self, dvalues):
         #Gradients on parameters
         self.dweights = np.dot(self.inputs.T, dvalues)
         self.dbiases = np.sum(dvalues, axis = 0, keepdims= True)  #Revise
         self.dinputs = np.dot(dvalues, self.weights.T) #Must it be in this order?
+
+        #Gradients on regulatization
+        #L1 on weights
+        if self.weight_regularizer_l1 > 0: #turn on regularization
+            dL1 = np.ones_like(self.weights)
+            dL1[self.weights < 0] = -1  #Else = 1
+            self.dweights += self.weight_regularizer_l1 * dL1   #Derivatives of L1 Weights Formula
+
+        #L2 on weights
+        if self.weight_regularizer_l2 > 0: 
+            self.dweights += 2 * self.weight_regularizer_l2 * self.weights #Derivatives of L2 Weights Formula
+
+        #L1 on bias
+        if self.bias_regularizer_l1 > 0: 
+            dL1 = np.ones_like(self.biases)
+            dL1[self.biases < 0] = -1  #Else = 1
+            self.dbiases += self.bias_regularizer_l1 * dL1   #Formula for derivatives of L1 Weights
+
+        #L2 on bias
+        if self.bias_regularizer_l2 > 0: 
+            self.dbiases += 2 * self.bias_regularizer_l2 * self.biases #Derivatives of L2 Weights Formula
+        
 
 class Activation_Relu:
     def forward(self, inputs):
@@ -66,9 +94,9 @@ class Optimizer_Adam:
         self.beta_2 = beta_2
 
     #Call once before any parameter updates
-    def pre_update_params(Self):
+    def pre_update_params(self):
         if self.decay:
-            self.current_learning_rate = self.learning_rate * (1 / (1 + self.decay * self.interations)) #Learning rate decreases to find Global Minimum
+            self.current_learning_rate = self.learning_rate * (1 / (1 + self.decay * self.iterations)) #Learning rate decreases to find Global Minimum
     
     def update_params(self, layer):
         #If layer does not contain cache arrays, create them and fill them with zeros
@@ -92,7 +120,7 @@ class Optimizer_Adam:
         # Update cache
         layer.weight_cache = self.beta_2 * layer.weight_cache +  (1 - self.beta_2) * layer.dweights**2
 
-        layer.bias_cache = self.beta_2 * layer.bias_cache +  (1 - self.beta_2) * layer.dbias**2
+        layer.bias_cache = self.beta_2 * layer.bias_cache +  (1 - self.beta_2) * layer.dbiases**2
 
         #Cache Bias Correction
 
@@ -100,7 +128,7 @@ class Optimizer_Adam:
         bias_cache_corrected = layer.bias_cache / (1 - self.beta_2 ** (self.iterations + 1))
         
         #Update Weights
-        layer.weghts += -self.current_learning_rate * weight_momentums_corrected / (np.sqrt(weight_cache_corrected) + self.epsilon)
+        layer.weights += -self.current_learning_rate * weight_momentums_corrected / (np.sqrt(weight_cache_corrected) + self.epsilon)
         layer.biases += -self.current_learning_rate * \
                         bias_momentums_corrected /  (np.sqrt(bias_cache_corrected) + self.epsilon)
 
@@ -110,6 +138,25 @@ class Optimizer_Adam:
 
 class Loss:
 
+    def regularization_loss(self, layer): #Forward Pass
+        #0 by default
+        regularization_loss = 0
+
+        if layer.weight_regularizer_l1 > 0: #L1 Weight Regularization
+            regularization_loss += layer.weight_regularizer_l1 * np.sum(np.abs(layer.weights))
+
+        if layer.weight_regularizer_l2 > 0: #L2 Weight Regularization
+                    regularization_loss += layer.weight_regularizer_l2 * np.sum((layer.weights)**2)
+
+        if layer.bias_regularizer_l1 > 0: #L1 Bias Regularization
+                    regularization_loss += layer.bias_regularizer_l1 * np.sum(np.abs(layer.biases))
+        
+        if layer.bias_regularizer_l2 > 0: #L2 Bias Regularization
+                    regularization_loss += layer.bias_regularizer_l2 * np.sum((layer.biases)**2)
+        
+        return regularization_loss
+
+    
     def calculate(self, output, true_class ):
 
         sample_loss = self.forward(output,true_class)    #Calls forward function in class Loss_CategoricalCrossentropy(Loss)
@@ -144,8 +191,8 @@ class Loss_CategoricalCrossentropy(Loss):
         if len(true_class.shape) == 1:
             true_class = np.eye(labels)[true_class]  #Creates indentity matrix according to the true_class position
 
-            self.dinputs = -true_class/ dvalues     #Calculate gradients of the correct class according to derivatives of -log(dvalues) -> -1/dvalues
-            self.dinputs = self.dinputs / samples   #Averages the Gradients over the batch loss
+        self.dinputs = -true_class/ dvalues     #Calculate gradients of the correct class according to derivatives of -log(dvalues) -> -1/dvalues
+        self.dinputs = self.dinputs / samples   #Averages the Gradients over the batch loss
 
 #Wraps Softmax activation and cross-entropy Loss
 class Activation_Softmax_Loss_CategoricalCrossentropy():
@@ -185,7 +232,7 @@ dense2 = Layer_Dense(3, 3)
 loss_activation = Activation_Softmax_Loss_CategoricalCrossentropy()
 
 #Create Optimizer
-optimizer = Optimizer_Adam(learning_rate=0.05, decay=5e-7) ###
+optimizer = Optimizer_Adam(learning_rate=0.02, decay=5e-7) ###
 
 for epoch in range(10001): ###
 
@@ -196,10 +243,15 @@ for epoch in range(10001): ###
 
     dense2.forward(activation1.output)
 
-    loss = loss_activation.forward(dense2.output, y)
+    Data_loss = loss_activation.forward(dense2.output, y)   #Data loss = Loss from Prediction
+
+    #Calculate regulariation penalty
+    regularization_loss = loss_activation.loss.regularization_loss(dense1) + loss_activation.loss.regularization_loss(dense2) ###Revise "layer."
+
+    Total_loss = Data_loss + regularization_loss   
 
     #Loss Value
-    print("loss value:", loss)
+    print("loss value:", Total_loss)
 
     predictions = np.argmax(loss_activation.output, axis=1)
     if len(y.shape) == 2:
@@ -209,9 +261,11 @@ for epoch in range(10001): ###
 
     if not epoch % 100:
         print(f'epoch: {epoch}, ' +
-        f'acc: {accuracy:.3f}, ' +
-        f'loss: {loss:.3f}, ' +
-        f'lr: {optimizer.current_learning_rate}')
+            f'acc: {accuracy:.3f}, ' +
+            f'Total loss: {Total_loss: .3f} (' +
+            f'Data loss: {Data_loss:.3f}, ' +
+            f'reg_loss: {regularization_loss:.3f}),' +
+            f'lr: {optimizer.current_learning_rate}')
 
     
 
@@ -221,13 +275,27 @@ for epoch in range(10001): ###
     activation1.backward(dense2.dinputs)
     dense1.backward(activation1.dinputs)
 
-    print(dense1.dweights)
-    print(dense1.dbiases)
-    print(dense2.dweights)
-    print(dense2.dbiases)
-
     # Update weights and biases
     optimizer.pre_update_params()
     optimizer.update_params(dense1)
     optimizer.update_params(dense2)
     optimizer.post_update_params()
+
+    #Use Testing data set to validate the model
+    # Ensure Testing Loss identical with Training Loss
+    X_test, Y_test = spiral_data(samples=100, classes=3)
+
+    dense1.forward(X_test)
+
+    activation1.forward(dense1.output)
+
+    dense2.forward(activation1.output)
+
+    Data_loss = loss_activation.forward(dense2.output, Y_test)
+
+    predictions = np.argmax(loss_activation.output, axis=1)
+    if len(Y_test.shape) == 2:
+        Y_test = np.argmax(Y_test, axis=1)
+    accuracy = np.mean(predictions == Y_test) ###Revise
+
+    print(f"validation, acc: {accuracy:.3f}, loss: {Total_loss:.3f}")
