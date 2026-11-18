@@ -223,11 +223,12 @@ class Activation_Softmax_Loss_CategoricalCrossentropy():
 X, y = spiral_data(samples=100, classes=3)
 
 #Build the Network
-dense1 = Layer_Dense(2, 3)
+dense1 = Layer_Dense(2, 64, weight_regularizer_l2=5e-4,
+                    bias_regularizer_l2=5e-4)
 
 activation1 = Activation_Relu()
 
-dense2 = Layer_Dense(3, 3)
+dense2 = Layer_Dense(64, 3)
 
 loss_activation = Activation_Softmax_Loss_CategoricalCrossentropy()
 
@@ -250,14 +251,10 @@ for epoch in range(10001): ###
 
     Total_loss = Data_loss + regularization_loss   
 
-    #Loss Value
-    print("loss value:", Total_loss)
-
     predictions = np.argmax(loss_activation.output, axis=1)
     if len(y.shape) == 2:
         y = np.argmax(y, axis=1)
     accuracy = np.mean(predictions == y) ###
-    print("Accuracy:", accuracy)
 
     if not epoch % 100:
         print(f'epoch: {epoch}, ' +
@@ -283,19 +280,19 @@ for epoch in range(10001): ###
 
     #Use Testing data set to validate the model
     # Ensure Testing Loss identical with Training Loss
-    X_test, Y_test = spiral_data(samples=100, classes=3)
+X_test, Y_test = spiral_data(samples=100, classes=3)
 
-    dense1.forward(X_test)
+dense1.forward(X_test)
 
-    activation1.forward(dense1.output)
+activation1.forward(dense1.output)
 
-    dense2.forward(activation1.output)
+dense2.forward(activation1.output)
 
-    Data_loss = loss_activation.forward(dense2.output, Y_test)
+Data_loss = loss_activation.forward(dense2.output, Y_test)
 
-    predictions = np.argmax(loss_activation.output, axis=1)
-    if len(Y_test.shape) == 2:
-        Y_test = np.argmax(Y_test, axis=1)
+predictions = np.argmax(loss_activation.output, axis=1)
+if len(Y_test.shape) == 2:
+    Y_test = np.argmax(Y_test, axis=1)
     accuracy = np.mean(predictions == Y_test) ###Revise
 
-    print(f"validation, acc: {accuracy:.3f}, loss: {Total_loss:.3f}")
+print(f"validation, acc: {accuracy:.3f}, loss: {Data_loss:.3f}")
