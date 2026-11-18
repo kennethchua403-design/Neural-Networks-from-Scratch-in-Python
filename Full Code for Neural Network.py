@@ -220,7 +220,7 @@ class Activation_Softmax_Loss_CategoricalCrossentropy():
 
         self.dinputs = self.dinputs / samples
     
-X, y = spiral_data(samples=100, classes=3)
+X, y = spiral_data(samples=300, classes=3)
 
 #Build the Network
 dense1 = Layer_Dense(2, 64, weight_regularizer_l2=5e-4,
@@ -261,8 +261,8 @@ for epoch in range(10001): ###
             f'acc: {accuracy:.3f}, ' +
             f'Total loss: {Total_loss: .3f} (' +
             f'Data loss: {Data_loss:.3f}, ' +
-            f'reg_loss: {regularization_loss:.3f}),' +
-            f'lr: {optimizer.current_learning_rate}')
+            f'Regularization loss: {regularization_loss:.3f}),' +
+            f'Learing Rate: {optimizer.current_learning_rate}')
 
     
 
@@ -295,4 +295,4 @@ if len(Y_test.shape) == 2:
     Y_test = np.argmax(Y_test, axis=1)
     accuracy = np.mean(predictions == Y_test) ###Revise
 
-print(f"validation, acc: {accuracy:.3f}, loss: {Data_loss:.3f}")
+print(f"validation, acc: {accuracy:.3f}, Validation_Data_loss: {Data_loss:.3f}")
