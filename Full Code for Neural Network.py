@@ -45,8 +45,7 @@ class Layer_Dense:
         #L2 on bias
         if self.bias_regularizer_l2 > 0: 
             self.dbiases += 2 * self.bias_regularizer_l2 * self.biases #Derivatives of L2 Weights Formula
-        
-
+            
 class Activation_Relu:
     def forward(self, inputs):
         self.inputs = inputs
@@ -55,6 +54,23 @@ class Activation_Relu:
     def backward(self, dvalues):
         self.dinputs = dvalues.copy()  #To prevent changing of original values
         self.dinputs[self.inputs < 0] = 0  #Stop Gradients with Inputs < 0 from passing through
+
+class Layer_Dropout:
+
+    def __init__(self, rate):
+          self.rate = 1 - rate #success rate
+
+    def forward(self, inputs):
+         self.inputs = inputs
+
+         #Create and scale mask
+         self.binary_mask = np.random.binomial(1, self.rate, size=inputs.shape)/ self.rate ###What is input.shape
+
+         #Apply mask to output values
+         self.output = inputs * self.binary_mask
+
+    def backward(self, dvalues):
+         self.dinputs = dvalues * self.binary_mask
 
 class Activation_Softmax:
 
@@ -220,15 +236,17 @@ class Activation_Softmax_Loss_CategoricalCrossentropy():
 
         self.dinputs = self.dinputs / samples
     
-X, y = spiral_data(samples=300, classes=3)
+X, y = spiral_data(samples=1000, classes=3)
 
 #Build the Network
-dense1 = Layer_Dense(2, 64, weight_regularizer_l2=5e-4,
+dense1 = Layer_Dense(2, 512, weight_regularizer_l2=5e-4,
                     bias_regularizer_l2=5e-4)
 
 activation1 = Activation_Relu()
 
-dense2 = Layer_Dense(64, 3)
+dropout1 = Layer_Dropout(0.1)
+
+dense2 = Layer_Dense(512, 3)
 
 loss_activation = Activation_Softmax_Loss_CategoricalCrossentropy()
 
@@ -242,7 +260,9 @@ for epoch in range(10001): ###
 
     activation1.forward(dense1.output)
 
-    dense2.forward(activation1.output)
+    dropout1.forward(activation1.output)
+
+    dense2.forward(dropout1.output)
 
     Data_loss = loss_activation.forward(dense2.output, y)   #Data loss = Loss from Prediction
 
@@ -269,7 +289,8 @@ for epoch in range(10001): ###
     #Backward Pass
     loss_activation.backward(loss_activation.output, y)
     dense2.backward(loss_activation.dinputs)
-    activation1.backward(dense2.dinputs)
+    dropout1.backward(dense2.dinputs)
+    activation1.backward(dropout1.dinputs)
     dense1.backward(activation1.dinputs)
 
     # Update weights and biases
@@ -286,7 +307,7 @@ dense1.forward(X_test)
 
 activation1.forward(dense1.output)
 
-dense2.forward(activation1.output)
+dense2.forward(activation1.output)  ###Revise, why is dropout not needed here?
 
 Data_loss = loss_activation.forward(dense2.output, Y_test)
 
