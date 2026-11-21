@@ -2,13 +2,14 @@ import numpy as np
 import nnfs
 from nnfs.datasets import spiral_data
 
-nnfs.init()
+nnfs.init(dot_precision_workaround=False)  #Sets that all calculations be done on Float 32 
 
 class Layer_Dense:
     def __init__(self, n_inputs, n_neurons, weight_regularizer_l1=0,weight_regularizer_l2=0, 
                  bias_regularizer_l1=0, bias_regularizer_l2=0):
-        self.weights = 0.01 * np.random.randn(n_inputs, n_neurons)
-        self.biases = np.zeros((1, n_neurons))
+
+        self.weights = (0.01 * np.random.randn(n_inputs, n_neurons).astype(np.float32))   
+        self.biases = np.zeros((1, n_neurons), dtype=np.float32)
 
         self.weight_regularizer_l1 = weight_regularizer_l1
         self.weight_regularizer_l2 = weight_regularizer_l2
@@ -61,13 +62,14 @@ class Layer_Dropout:
           self.rate = 1 - rate #success rate
 
     def forward(self, inputs):
-         self.inputs = inputs
+        self.inputs = inputs
+        ng = np.random.default_rng()   
 
-         #Create and scale mask
-         self.binary_mask = np.random.binomial(1, self.rate, size=inputs.shape)/ self.rate ###What is input.shape
+        #Create and scale mask
+        self.binary_mask = (ng.random(inputs.shape, dtype=np.float32) < self.rate) / np.float32(self.rate)   #Fater than using Binomial
 
          #Apply mask to output values
-         self.output = inputs * self.binary_mask
+        self.output = inputs * self.binary_mask
 
     def backward(self, dvalues):
          self.dinputs = dvalues * self.binary_mask
@@ -237,23 +239,24 @@ class Activation_Softmax_Loss_CategoricalCrossentropy():
         self.dinputs = self.dinputs / samples
     
 X, y = spiral_data(samples=1000, classes=3)
+X = X.astype(np.float32)  #Converts inputs in Float 32
 
 #Build the Network
-dense1 = Layer_Dense(2, 512, weight_regularizer_l2=5e-4,
+dense1 = Layer_Dense(2, 256, weight_regularizer_l2=5e-4,
                     bias_regularizer_l2=5e-4)
 
 activation1 = Activation_Relu()
 
 dropout1 = Layer_Dropout(0.1)
 
-dense2 = Layer_Dense(512, 3)
+dense2 = Layer_Dense(256, 3)
 
 loss_activation = Activation_Softmax_Loss_CategoricalCrossentropy()
 
 #Create Optimizer
-optimizer = Optimizer_Adam(learning_rate=0.02, decay=5e-7) ###
+optimizer = Optimizer_Adam(learning_rate=0.1, decay=5e-4) ###
 
-for epoch in range(10001): ###
+for epoch in range(8001): ###
 
     #Data Flow 
     dense1.forward(X)
@@ -314,6 +317,6 @@ Data_loss = loss_activation.forward(dense2.output, Y_test)
 predictions = np.argmax(loss_activation.output, axis=1)
 if len(Y_test.shape) == 2:
     Y_test = np.argmax(Y_test, axis=1)
-    accuracy = np.mean(predictions == Y_test) ###Revise
+accuracy = np.mean(predictions == Y_test) ###Revise
 
 print(f"validation, acc: {accuracy:.3f}, Validation_Data_loss: {Data_loss:.3f}")
